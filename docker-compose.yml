@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  socialmedia-db:
+    image: postgres:16-alpine
+    restart: always
+    container_name: socialmedia-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - socialmedia-db:/var/lib/postgresql/data
+
+  # prometheus:
+  #   image: prom/prometheus:v2.50.1
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #
+  # grafana:
+  #   image: grafana/grafana-oss:10.0.12
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana-storage:/var/lib/grafana
+  #
+volumes:
+  socialmedia-db:
+  # grafana-storage:

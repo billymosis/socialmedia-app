@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS user_credentials;
+DROP TABLE IF EXISTS relationships;
+DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS comments;
