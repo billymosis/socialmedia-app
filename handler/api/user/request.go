@@ -20,3 +20,8 @@ type linkEmailRequest struct {
 type linkPhoneRequest struct {
 	Phone string `json:"phone" validate:"required,startswith=+,min=7,max=13"`
 }
+
+type updateUserRequest struct {
+	ImageUrl string `json:"imageUrl" validate:"required,url"`
+	Name     string `json:"name" validate:"required,min=5,max=50"`
+}

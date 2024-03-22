@@ -7,7 +7,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type UserStore struct {
@@ -38,10 +37,10 @@ func (us *UserStore) GetById(ctx context.Context, id uint) (*model.User, error) 
 	return &user, nil
 }
 
-func (us *UserStore) GetByCredential(ctx context.Context, credentialValue string) (*model.User, error) {
-	var user model.User
+func (us *UserStore) GetByCredential(ctx context.Context, credentialValue string) (*model.UserAndCred, error) {
+	var user model.UserAndCred
 	query := `
-		SELECT u.id AS user_id, u.password as password, u.name as name
+		SELECT u.id AS user_id, u.password as password, u.name as name 
 		FROM users u
 		JOIN user_credentials uc ON u.id = uc.user_id
 		WHERE uc.credential_value = $1
@@ -51,11 +50,26 @@ func (us *UserStore) GetByCredential(ctx context.Context, credentialValue string
 		&user.Password,
 		&user.Name,
 	)
-	logrus.Printf("%+v\n", credentialValue)
-	logrus.Printf("%+v\n", err)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get user by username")
 	}
+	query = `
+	SELECT credential_type, credential_value
+	FROM user_credentials
+	WHERE user_id = $1
+	`
+	rows, err := us.db.Query(ctx, query, user.Id)
+	for rows.Next() {
+		var cred model.Credential
+		rows.Scan(&cred.CredentialType, &cred.CredentialValue)
+		if cred.CredentialType == "email" {
+			user.Email = cred.CredentialValue
+		}
+		if cred.CredentialType == "phone" {
+			user.Phone = cred.CredentialValue
+		}
+	}
+
 	return &user, nil
 }
 
@@ -90,7 +104,6 @@ func (us *UserStore) UpdateUserEmail(ctx context.Context, email string, userId i
 	if err != nil {
 		return errors.Wrap(err, "failed to create credentials")
 	}
-	logrus.Printf("EXIST: %+v\n", exist)
 	if exist {
 		return errors.New("email already exist")
 
@@ -125,6 +138,17 @@ func (us *UserStore) UpdateUserPhone(ctx context.Context, phone string, userId i
 	_, err = us.db.Exec(ctx, query, "phone", phone, userId)
 	if err != nil {
 		return errors.Wrap(err, "failed to create credentials")
+	}
+	return nil
+}
+
+func (us *UserStore) UpdateUser(ctx context.Context, image string, name string, userId int) error {
+	query := `
+	UPDATE users SET name = $1, image_url = $2 WHERE id = $3 
+	`
+	_, err := us.db.Exec(ctx, query, name, image, userId)
+	if err != nil {
+		return errors.Wrap(err, "failed to update users")
 	}
 	return nil
 }

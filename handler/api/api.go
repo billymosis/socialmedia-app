@@ -4,13 +4,13 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/billymosis/socialmedia-app/handler/api/account"
-	"github.com/billymosis/socialmedia-app/handler/api/product"
+	x "github.com/billymosis/socialmedia-app/handler/api/post"
+	"github.com/billymosis/socialmedia-app/handler/api/relationship"
 	"github.com/billymosis/socialmedia-app/handler/api/user"
-	"github.com/billymosis/socialmedia-app/middleware"
+	AppMiddleware "github.com/billymosis/socialmedia-app/middleware"
 	"github.com/billymosis/socialmedia-app/service/image"
-	as "github.com/billymosis/socialmedia-app/store/account"
-	ps "github.com/billymosis/socialmedia-app/store/product"
+	pss "github.com/billymosis/socialmedia-app/store/post"
+	rs "github.com/billymosis/socialmedia-app/store/relationship"
 	us "github.com/billymosis/socialmedia-app/store/user"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -20,18 +20,18 @@ import (
 )
 
 type Server struct {
-	Users    *us.UserStore
-	Products *ps.ProductStore
-	Accounts *as.AccountStore
-	S3Client *s3.Client
+	Users         *us.UserStore
+	Relationships *rs.RelationshipStore
+	Posts         *pss.PostStore
+	S3Client      *s3.Client
 }
 
-func New(users *us.UserStore, products *ps.ProductStore, accounts *as.AccountStore, s3client *s3.Client) Server {
+func New(users *us.UserStore, relationships *rs.RelationshipStore, posts *pss.PostStore, s3client *s3.Client) Server {
 	return Server{
-		Users:    users,
-		Products: products,
-		Accounts: accounts,
-		S3Client: s3client,
+		Users:         users,
+		Relationships: relationships,
+		Posts:         posts,
+		S3Client:      s3client,
 	}
 }
 func prometheusHandler() http.Handler {
@@ -55,33 +55,27 @@ func (s Server) Handler() http.Handler {
 		r.Route("/user", func(r chi.Router) {
 			r.Post("/login", user.HandleAuthentication(s.Users))
 			r.Post("/register", user.HandleRegistration(s.Users))
+			r.With(AppMiddleware.ValidateJWT).Patch("/", user.HandleUpdateUser(s.Users))
 			r.Route("/link", func(r chi.Router) {
 				r.Use(AppMiddleware.ValidateJWT)
-				r.Post("/email", user.HandleLinkEmail(s.Users))
+				r.Post("/", user.HandleLinkEmail(s.Users))
 				r.Post("/phone", user.HandleLinkPhone(s.Users))
 			})
 		})
-
-		r.Route("/product", func(r chi.Router) {
-			r.Get("/", product.HandleGetProducts(s.Products))
-			r.Get("/{id}", product.GetProductDetail(s.Products, s.Accounts))
-			r.Route("/", func(r chi.Router) {
-				r.Use(AppMiddleware.ValidateJWT)
-				r.Post("/", product.HandleCreateProduct(s.Products))
-				r.Patch("/{id}", product.HandleUpdateProduct(s.Products))
-				r.Delete("/{id}", product.HandleDeleteProduct(s.Products))
-				r.Post("/{id}/stock", product.UpdateStock(s.Products))
-				r.Post("/{id}/buy", product.Buy(s.Products))
-			})
-		})
-		r.Route("/bank/account", func(r chi.Router) {
+		r.Route("/friend", func(r chi.Router) {
 			r.Use(AppMiddleware.ValidateJWT)
-			r.Post("/", account.Create(s.Accounts))
-			r.Get("/", account.Get(s.Accounts))
-			r.Patch("/", account.Update(s.Accounts))
-			r.Patch("/{id}", account.Update(s.Accounts))
-			r.Delete("/{id}", account.Delete(s.Accounts))
+			r.Get("/", relationship.Get(s.Relationships))
+			r.Post("/", relationship.Add(s.Relationships))
+			r.Delete("/", relationship.Delete(s.Relationships))
 		})
+
+		r.Route("/post", func(r chi.Router) {
+			r.Use(AppMiddleware.ValidateJWT)
+			r.Get("/", x.GetPost(s.Posts))
+			r.Post("/", x.Create(s.Posts))
+			r.Post("/comment", x.CreateComment(s.Posts))
+		})
+
 	})
 
 	r.Route("/v1/image", func(r chi.Router) {

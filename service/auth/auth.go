@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/sirupsen/logrus"
 )
 
 type jwtCustomClaims struct {
@@ -44,7 +43,6 @@ func GenerateToken(id int) (string, error) {
 
 func GetUserId(ctx context.Context) (int, error) {
 	props, _ := ctx.Value("userAuthCtx").(jwt.MapClaims)
-	logrus.Printf("%+v\n", props)
 
 	userId, err := strconv.Atoi(fmt.Sprintf("%v", props["user_id"]))
 	if err != nil {

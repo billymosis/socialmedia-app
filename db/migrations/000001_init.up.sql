@@ -2,8 +2,9 @@ CREATE TABLE IF NOT EXISTS users(
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     password VARCHAR(72) NOT NULL,
-    imageUrl TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    image_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    friend_count INTEGER DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_credentials(
@@ -13,11 +14,16 @@ CREATE TABLE IF NOT EXISTS user_credentials(
     user_id INTEGER REFERENCES users(id) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS relationships (
+
+CREATE TABLE IF NOT EXISTS relationships(
     id SERIAL PRIMARY KEY,
     user_first_id INTEGER REFERENCES users(id) NOT NULL,
-    user_second_id INTEGER REFERENCES users(id) NOT NULL
+    user_second_id INTEGER REFERENCES users(id) NOT NULL,
+    CONSTRAINT check_not_self_relationship CHECK (user_first_id <> user_second_id)
 );
+
+CREATE UNIQUE INDEX unique_relationship 
+ON relationships (LEAST(user_first_id, user_second_id), GREATEST(user_first_id, user_second_id));
 
 CREATE TABLE IF NOT EXISTS posts(
     id SERIAL PRIMARY KEY,

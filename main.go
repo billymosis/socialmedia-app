@@ -15,8 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/billymosis/socialmedia-app/db"
 	"github.com/billymosis/socialmedia-app/handler/api"
-	as "github.com/billymosis/socialmedia-app/store/account"
-	ps "github.com/billymosis/socialmedia-app/store/product"
+	pss "github.com/billymosis/socialmedia-app/store/post"
+	rs "github.com/billymosis/socialmedia-app/store/relationship"
 	us "github.com/billymosis/socialmedia-app/store/user"
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
@@ -54,10 +54,10 @@ func main() {
 	validate := validator.New()
 
 	userStore := us.NewUserStore(db, validate)
-	productStore := ps.NewProductStore(db, validate)
-	accountStore := as.NewAccountStore(db, validate)
+	relationStore := rs.NewRelationshipStore(db, validate)
+	postStore := pss.NewPostStore(db, validate)
 
-	r := api.New(userStore, productStore, accountStore, s3Client)
+	r := api.New(userStore, relationStore, postStore, s3Client)
 	h := r.Handler()
 
 	logrus.Info("application starting")

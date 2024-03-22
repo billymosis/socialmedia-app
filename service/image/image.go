@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/billymosis/socialmedia-app/handler/render"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 func isValidFile(filename string) bool {
@@ -32,7 +31,10 @@ func isValidFileSize(fileSize int64) bool {
 }
 
 type uploadResponse struct {
-	ImageUrl string `json:"imageUrl"`
+	Message string `json:"message"`
+	Data    struct {
+		ImageUrl string `json:"imageUrl"`
+	} `json:"data"`
 }
 
 func Upload(client *s3.Client) http.HandlerFunc {
@@ -69,7 +71,7 @@ func Upload(client *s3.Client) http.HandlerFunc {
 		sess := s3.New(client.Options())
 
 		bucket := os.Getenv("S3_BUCKET_NAME")
-		res, err := sess.PutObject(r.Context(),
+		_, err = sess.PutObject(r.Context(),
 			&s3.PutObjectInput{
 				Bucket: aws.String(bucket),
 				Key:    aws.String(filename),
@@ -80,10 +82,14 @@ func Upload(client *s3.Client) http.HandlerFunc {
 			render.InternalError(w, err)
 			return
 		}
-		logrus.Printf("S3: %+v", res.ResultMetadata)
 
 		url := fmt.Sprintf("https://%s.%s/%s", bucket, "s3.amazonaws.com", filename)
 
-		render.JSON(w, uploadResponse{ImageUrl: url}, 200)
+		render.JSON(w, uploadResponse{
+			Message: "File uploaded successfully",
+			Data: struct {
+				ImageUrl string `json:"imageUrl"`
+			}{ImageUrl: url},
+		}, 200)
 	}
 }

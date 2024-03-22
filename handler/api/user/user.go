@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/billymosis/socialmedia-app/handler/render"
 	"github.com/billymosis/socialmedia-app/model"
@@ -13,7 +14,6 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 func HandleAuthentication(us *us.UserStore) http.HandlerFunc {
@@ -45,7 +45,6 @@ func HandleAuthentication(us *us.UserStore) http.HandlerFunc {
 			}
 		}
 		if req.CredentialType == "email" {
-			fmt.Printf(req.CredentialValue)
 			err = us.Validate.Var(req.CredentialValue, "email,required")
 			if err != nil {
 				render.BadRequest(w, errors.New("Invalid email format"))
@@ -53,12 +52,11 @@ func HandleAuthentication(us *us.UserStore) http.HandlerFunc {
 			}
 
 		}
-		var user *model.User
+		var user *model.UserAndCred
 		user, err = us.GetByCredential(r.Context(), req.CredentialValue)
 
 		if err != nil {
 			render.NotFound(w, errors.New("User not found"))
-			logrus.Info("api: cannot find user")
 			return
 		}
 
@@ -81,11 +79,15 @@ func HandleAuthentication(us *us.UserStore) http.HandlerFunc {
 		res.Data.AccessToken = token
 		if req.CredentialType == "email" {
 			res.Data.Email = req.CredentialValue
-			res.Data.Phone = ""
 		}
 		if req.CredentialType == "phone" {
 			res.Data.Phone = req.CredentialValue
-			res.Data.Email = ""
+		}
+		if user.Phone != "" {
+			res.Data.Phone = user.Phone
+		}
+		if user.Email != "" {
+			res.Data.Email = user.Email
 		}
 
 		render.JSON(w, res, http.StatusOK)
@@ -106,6 +108,22 @@ func HandleRegistration(us *us.UserStore) http.HandlerFunc {
 		if err := json.Unmarshal(body, &req); err != nil {
 			render.BadRequest(w, err)
 			return
+		}
+
+		if req.CredentialType == "phone" {
+			err = us.Validate.Var(req.CredentialValue, "required,min=7,max=13,startswith=+")
+			if err != nil {
+				render.BadRequest(w, errors.New("Invalid phone format"))
+				return
+			}
+		}
+		if req.CredentialType == "email" {
+			err = us.Validate.Var(req.CredentialValue, "email,required")
+			if err != nil {
+				render.BadRequest(w, errors.New("Invalid email format"))
+				return
+			}
+
 		}
 
 		if err := us.Validate.Struct(req); err != nil {
@@ -177,10 +195,12 @@ func HandleLinkEmail(us *us.UserStore) http.HandlerFunc {
 
 		userId, err := auth.GetUserId(r.Context())
 		err = us.UpdateUserEmail(r.Context(), req.Email, userId)
+		fmt.Printf("%v", err)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) {
 				if pgErr.Code == pgerrcode.UniqueViolation {
+					fmt.Printf("%v", 409)
 					render.ErrorCode(w, err, 409)
 					return
 				}
@@ -213,6 +233,10 @@ func HandleLinkPhone(us *us.UserStore) http.HandlerFunc {
 		}
 
 		userId, err := auth.GetUserId(r.Context())
+		if err != nil {
+			render.BadRequest(w, err)
+			return
+		}
 		err = us.UpdateUserPhone(r.Context(), req.Phone, userId)
 		if err != nil {
 			var pgErr *pgconn.PgError
@@ -224,6 +248,44 @@ func HandleLinkPhone(us *us.UserStore) http.HandlerFunc {
 			}
 			render.BadRequest(w, err)
 			return
+		}
+		render.JSON(w, map[string]interface{}{}, 200)
+	}
+}
+
+func HandleUpdateUser(us *us.UserStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req updateUserRequest
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			render.BadRequest(w, err)
+			return
+		}
+		defer r.Body.Close()
+
+		if err := json.Unmarshal(body, &req); err != nil {
+			render.BadRequest(w, err)
+			return
+		}
+
+		if !strings.HasSuffix(req.ImageUrl, ".jpg") && !strings.HasSuffix(req.ImageUrl, ".jpeg") && !strings.HasSuffix(req.ImageUrl, ".png") {
+			render.BadRequest(w, errors.New("Invalid file type"))
+			return
+		}
+
+		if err := us.Validate.Struct(req); err != nil {
+			render.BadRequest(w, err)
+			return
+		}
+
+		userId, err := auth.GetUserId(r.Context())
+		if err != nil {
+			render.BadRequest(w, err)
+			return
+		}
+		err = us.UpdateUser(r.Context(), req.ImageUrl, req.Name, userId)
+		if err != nil {
+			render.InternalError(w, err)
 		}
 		render.JSON(w, map[string]interface{}{}, 200)
 	}

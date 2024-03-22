@@ -14,11 +14,23 @@ const (
 )
 
 type User struct {
-	Id        int
-	Name      string
-	Password  string
-	ImageUrl  string
-	CreatedAt time.Time
+	Id          int
+	Name        string
+	Password    string
+	ImageUrl    string
+	CreatedAt   time.Time
+	FriendCount int
+}
+
+type UserAndCred struct {
+	Id          int
+	Name        string
+	Password    string
+	ImageUrl    string
+	CreatedAt   time.Time
+	FriendCount int
+	Email       string
+	Phone       string
 }
 
 func (user *User) HashPassword() error {
@@ -36,6 +48,11 @@ func (user *User) HashPassword() error {
 }
 
 func (user *User) CheckPassword(password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	return err == nil
+}
+
+func (user *UserAndCred) CheckPassword(password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	return err == nil
 }
