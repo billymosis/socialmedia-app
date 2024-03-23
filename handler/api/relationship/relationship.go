@@ -10,7 +10,6 @@ import (
 	"github.com/billymosis/socialmedia-app/model"
 	"github.com/billymosis/socialmedia-app/service/auth"
 	rs "github.com/billymosis/socialmedia-app/store/relationship"
-	"github.com/sirupsen/logrus"
 )
 
 func Add(rs *rs.RelationshipStore) http.HandlerFunc {
@@ -34,7 +33,7 @@ func Add(rs *rs.RelationshipStore) http.HandlerFunc {
 		}
 		userIdRequest, err := strconv.Atoi(req.UserId)
 		if err != nil {
-			render.BadRequest(w, err)
+			render.NotFound(w, err)
 			return
 		}
 
@@ -46,7 +45,10 @@ func Add(rs *rs.RelationshipStore) http.HandlerFunc {
 
 		err = rs.AddFriend(r.Context(), userIdRequest, userId)
 		if err != nil {
-			
+			if err.Error() == "not exist" {
+				render.NotFound(w, err)
+				return
+			}
 			render.BadRequest(w, err)
 			return
 		}
@@ -101,14 +103,11 @@ func Get(rs *rs.RelationshipStore) http.HandlerFunc {
 			render.BadRequest(w, err)
 			return
 		}
-		logrus.Println("WOI1")
 		users, err := rs.GetFriendList(r.Context(), userId, r.URL.Query())
-		logrus.Printf("%v\n", err)
 		if err != nil {
 			render.BadRequest(w, err)
 			return
 		}
-		logrus.Printf("WOI2 %v", users)
 		var data []Friend = make([]Friend, 0)
 		if users != nil {
 			for _, user := range users.Friends {
@@ -121,7 +120,6 @@ func Get(rs *rs.RelationshipStore) http.HandlerFunc {
 				})
 			}
 		}
-		logrus.Println("WOI3")
 		res := GetFriendListRow{
 			Message: "",
 			Data:    data,

@@ -54,7 +54,7 @@ func (ps *RelationshipStore) AddFriend(ctx context.Context, userAddId int, userI
 		SET friend_count = friend_count + 1
 		WHERE id IN (SELECT user_first_id FROM inserted_relationship UNION SELECT user_second_id FROM inserted_relationship);
 	`
-	_, err := ps.db.Exec(ctx, query, userId, userAddId)
+	_, err = ps.db.Exec(ctx, query, userId, userAddId)
 	if err != nil {
 		return errors.Wrap(err, "failed to add relation")
 	}
@@ -107,7 +107,9 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 		FROM users u
 		LEFT JOIN relationships r ON u.id = r.user_first_id OR u.id = r.user_second_id WHERE`)
 
-	logrus.Println("WOX1")
+	if queryParams.Has("onlyFriend") && queryParams.Get("onlyFriend") == "" {
+		return nil, errors.New("bad request: invalid sortBy parameter")
+	}
 	onlyFriendStr := queryParams.Get("onlyFriend")
 	var onlyFriend bool = false
 	if onlyFriendStr != "" {
@@ -123,7 +125,6 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 		hasParams = true
 	}
 
-	logrus.Println("WOX2")
 	if onlyFriend {
 		q.Query(" AND u.id <> ")
 		q.Param(userId)
@@ -159,17 +160,17 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 		offset = offsetx
 	}
 
-	// Convert limitStr to an integer
-
 	if search != "" {
 		q.Query(" AND u.name LIKE ")
 		q.Param("%" + search + "%")
 	}
 
-	orderBy := queryParams.Get("orderBy")
-
-	if orderBy == "" {
-		orderBy = "DESC"
+	orderBy := "DESC"
+	if queryParams.Has("orderBy") && queryParams.Get("orderBy") == "" {
+		return nil, errors.New("bad request: invalid sortBy parameter")
+	}
+	if queryParams.Get("orderBy") != "" {
+		orderBy = queryParams.Get("orderBy")
 	}
 
 	sortBy := "created_at"
@@ -222,7 +223,7 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 			return nil, errors.Wrap(err, "failed to scan friend data")
 		}
 		users = append(users, &user)
-	logrus.Printf("QUERY: %+v\n", &user)
+		logrus.Printf("QUERY: %+v\n", &user)
 	}
 
 	if err := rows.Err(); err != nil {

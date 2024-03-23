@@ -14,6 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type PostStore struct {
@@ -64,13 +65,9 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 	q := helper.Query{}
 	q.Query(`
 		SELECT p.id, p.html, p.tags, p.created_at,
-		       c.comment, c.created_at,
-		       uc.id, uc.name, uc.image_url, uc.friend_count, uc.created_at,
 		       u.id post_creator_id, u.name as post_creator_name, u.image_url, u.friend_count, u.created_at
 		FROM posts p
-		LEFT JOIN comments c ON p.id  = c.post_id  
 		LEFT JOIN users u ON p.user_id  = u.id 
-		LEFT JOIN users uc on c.user_id = uc.id
 		WHERE`)
 	var err error
 
@@ -88,32 +85,48 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 
 	if len(tags) > 0 {
 		for _, element := range tags {
-			q.Query(" AND p.tags @> ")
-			q.Param("[\"" + element + "\"]")
+			q.Query(" AND p.tags ? ")
+			q.Param(element)
 		}
-
 	}
 
-	limitStr := queryParams.Get("limit")
 	limit := 10
-
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			return nil, nil
-		}
+	limitStr := queryParams.Get("limit")
+	if queryParams.Has("limit") && limitStr == "" {
+		return nil, errors.New("bad request")
 	}
-	q.Query("\nLIMIT ")
-	q.Param(limit)
+	if queryParams.Has("limit") && limitStr != "" {
+		limitx, err := strconv.Atoi(limitStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "bad request")
+		}
+		if limitx < 0 {
+			return nil, errors.New("bad request")
+		}
+		limit = limitx
+	}
 
-	offsetStr := queryParams.Get("offset")
 	offset := 0
-	if offsetStr != "" {
-		offset, err = strconv.Atoi(offsetStr)
-		if err != nil {
-			return nil, nil
-		}
+	offsetStr := queryParams.Get("offset")
+	if queryParams.Has("offset") && offsetStr == "" {
+		return nil, errors.New("bad request")
 	}
+	if queryParams.Has("offset") && offsetStr != "" {
+		offsetx, err := strconv.Atoi(offsetStr)
+		if err != nil {
+			return nil, errors.Wrap(err, "bad request")
+		}
+		if offsetx < 0 {
+			return nil, errors.New("bad request")
+		}
+		offset = offsetx
+	}
+
+	q.Query(fmt.Sprintf("\nORDER BY %s", "p.created_at"))
+	q.Query(fmt.Sprintf(" %s", "DESC"))
+
+	q.Query(" LIMIT ")
+	q.Param(limit)
 	q.Query(" OFFSET ")
 	q.Param(offset)
 
@@ -126,63 +139,83 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 		}
 		query = strings.Replace(query, "WHERE AND", "WHERE", 1)
 	}
+	logrus.Printf("QUE: %+v\n", query)
+	logrus.Printf("QUE: %+v\n", params...)
 
 	rows, err := ps.db.Query(ctx, query, params...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get posts")
 	}
-	commentMap := make(map[string][]model.CommentResponseValid)
-	postMap := make(map[string]model.PostResponseData)
-	order := make([]string, 0)
+	order := make([]*model.PostResponseData, 0)
+	orderID := make([]string, 0)
 	for rows.Next() {
 		var data model.PostResponseData
-		var comment model.CommentResponse
 		var tagsJSON []byte
 		var postUserImage sql.NullString
-		err := rows.Scan(&data.PostID, &data.PostContent.PostInHTML, &tagsJSON, &data.PostContent.CreatedAt, &comment.Comment, &comment.CreatedAt, &comment.Creator.UserID, &comment.Creator.Name, &comment.Creator.ImageURL, &comment.Creator.FriendCount, &comment.Creator.CreatedAt, &data.Creator.UserID, &data.Creator.Name, &postUserImage, &data.Creator.FriendCount, &data.Creator.CreatedAt)
-		order = append(order, data.PostID)
+		err := rows.Scan(&data.PostID, &data.PostContent.PostInHTML, &tagsJSON, &data.PostContent.CreatedAt, &data.Creator.UserId, &data.Creator.Name, &postUserImage, &data.Creator.FriendCount, &data.Creator.CreatedAt)
+		order = append(order, &data)
+		orderID = append(orderID, data.PostID)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to scan posts")
 		}
 		if err := json.Unmarshal(tagsJSON, &data.PostContent.Tags); err != nil {
 			return nil, errors.Wrap(err, "failed to unmarshal tags JSON")
 		}
-		_, ok := postMap[data.PostID]
-		if !ok {
-			postMap[data.PostID] = data
-		}
-		if comment.Comment.Valid {
-			commentMap[data.PostID] = append(commentMap[data.PostID],
-				model.CommentResponseValid{
-					Comment:   comment.Comment.String,
-					CreatedAt: comment.CreatedAt.Time,
-					Creator: model.CreatorValid{
-						UserID:      strconv.Itoa(int(comment.Creator.UserID.Int32)),
-						Name:        comment.Creator.Name.String,
-						ImageURL:    postUserImage.String,
-						FriendCount: int(comment.Creator.FriendCount.Int32),
-						CreatedAt:   comment.CreatedAt.Time,
-					},
-				},
-			)
-		}
 	}
 	var res model.PostResponse = model.PostResponse{
 		Data: []model.PostResponseData{},
 	}
-	order = helper.MakeUnique(order)
-	for _, ord := range order {
-		el, ok := postMap[ord]
-		mod, ok := commentMap[el.PostID]
-		if ok {
-			el.Comments = mod
-		} else {
-			el.Comments = make([]model.CommentResponseValid, 0)
+
+	query2 := fmt.Sprintf(`
+		SELECT c.id, c.comment, c.post_id, c.user_id,  c.created_at,
+		u.id, u.name, u.image_url, u.friend_count, u.created_at
+		FROM comments c
+		LEFT JOIN users u ON c.user_id = u.id
+		WHERE c.post_id IN (%s)
+	`, strings.Join(orderID, ","))
+	logrus.Printf("Q2: %+v\n", query2)
+	rows, err = ps.db.Query(ctx, query2)
+	var comments = make(map[int][]*model.CommentAndUser, 0)
+	for rows.Next() {
+		var mod model.CommentAndUser
+		err = rows.Scan(&mod.Comment.Id, &mod.Comment.Comment, &mod.Comment.PostId, &mod.Comment.UserId, &mod.Comment.CreatedAt, &mod.Creator.UserId, &mod.Creator.Name, &mod.Creator.ImageURL, &mod.Creator.FriendCount, &mod.Creator.CreatedAt)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to scan comments")
 		}
-		res.Data = append(res.Data, el)
+
+		comments[mod.Comment.PostId] = append(comments[mod.Comment.PostId], &mod)
+	}
+	logrus.Printf("OR: %+v\n", order)
+	logrus.Printf("OR3: %+v\n", comments)
+	for _, ord := range order {
+		id, err := strconv.Atoi(ord.PostID)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to convert")
+		}
+		ord.Comments = make([]model.CommentResponseValid, 0)
+		current, ok := comments[id]
+		if ok {
+			for _, el := range current {
+				logrus.Printf("OR2: %+v\n", el)
+				ord.Comments = append(ord.Comments, model.CommentResponseValid{
+					Comment: el.Comment.Comment,
+					Creator: model.CreatorValid{
+						UserId:      el.Creator.UserId,
+						Name:        el.Creator.Name,
+						ImageURL:    el.Creator.ImageURL,
+						FriendCount: el.Creator.FriendCount,
+						CreatedAt:   el.Creator.CreatedAt,
+					},
+				})
+
+			}
+
+		}
+		res.Data = append(res.Data, *ord)
 	}
 
-	countQuery := strings.Split(strings.Split(query, q.Arr[0])[1], "LIMIT")[0]
+	countQuery := strings.Split(strings.Split(query, q.Arr[0])[1], "ORDER")[0]
 	params = params[:len(params)-2]
 	if len(params) > 0 {
 		countQuery = fmt.Sprintf("SELECT COUNT(*) FROM posts p WHERE %s", countQuery)

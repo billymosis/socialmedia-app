@@ -3,6 +3,7 @@ package model
 import (
 	"database/sql"
 	"time"
+
 )
 
 type Post struct {
@@ -26,6 +27,7 @@ type PostData struct {
 	Tags       []string  `json:"tags"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
+
 type CommentResponse struct {
 	Comment   sql.NullString `json:"comment"`
 	Creator   Creator        `json:"creator"`
@@ -54,11 +56,16 @@ type Creator struct {
 }
 
 type CreatorValid struct {
-	UserID      string       `json:"userId"`
+	UserId      int       `json:"userId"`
 	Name        string    `json:"name"`
 	ImageURL    string    `json:"imageUrl"`
 	FriendCount int       `json:"friendCount"`
 	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type CommentAndUser struct {
+	Comment Comment
+	Creator CreatorValid
 }
 
 type PostResponse struct {
