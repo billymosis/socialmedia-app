@@ -64,7 +64,7 @@ func parseDSN(driver, host, database, username, password string, port int, maxco
 
 func postgreParseDSN(host, database, username, password string, port int, maxconn int) string {
 	if os.Getenv("ENV") == "production" {
-		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s sslrootcert=ap-southeast-1-bundle.pem TimeZone=UTC %s",
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s TimeZone=UTC %s",
 			host, port, username, password, database, strconv.Itoa(maxconn), os.Getenv("DB_PARAMS"))
 	}
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s sslmode=disable",
