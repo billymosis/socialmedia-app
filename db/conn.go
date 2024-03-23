@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,15 +12,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Connection(driver, host, database, username, password string, port, maxOpenConnections int) (*pgxpool.Pool, error) {
-	dsn, err := parseDSN(driver, host, database, username, password, port, maxOpenConnections)
+func Connection(driver, host, database, username, password, port string) (*pgxpool.Pool, error) {
+	dsn, err := parseDSN(driver, host, database, username, password, port)
+	logrus.Printf("SQL CONN: %+v\n", dsn)
 	if err != nil {
 		return nil, err
 	}
 
 	db, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		//debug.PrintStack()
 		return nil, err
 	}
 
@@ -53,19 +52,24 @@ func pingDatabase(db *pgxpool.Config) error {
 	return errPingDatabase
 }
 
-func parseDSN(driver, host, database, username, password string, port int, maxconn int) (string, error) {
+func parseDSN(driver, host, database, username, password, port string) (string, error) {
 
 	switch driver {
 	case "postgres":
-		return postgreParseDSN(host, database, username, password, port, maxconn), nil
+		return postgreParseDSN(host, database, username, password, port), nil
 	default:
 		return "", errUnSupportedDriver
 	}
 }
 
-func postgreParseDSN(host, database, username, password string, port int, maxconn int) string {
-	str := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s TimeZone=UTC %s",
-			host, port, username, password, database, strconv.Itoa(maxconn), os.Getenv("DB_PARAMS"))
-	logrus.Printf("SQL CONN: %+v\n", str)
-	return str
+func postgreParseDSN(host, database, username, password, port string ) string {
+	dbUrl := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+		username,
+		password,
+		host,
+		port,
+		database,
+		os.Getenv("DB_PARAMS"),
+	)
+	return dbUrl
 }

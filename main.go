@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -30,11 +29,10 @@ func main() {
 
 	host := os.Getenv("DB_HOST")
 	database := os.Getenv("DB_NAME")
-	port, _ := strconv.Atoi(os.Getenv("DB_PORT"))
+	port := (os.Getenv("DB_PORT"))
 	user := os.Getenv("DB_USERNAME")
 	password := os.Getenv("DB_PASSWORD")
 	region := os.Getenv("S3_REGION")
-	maxOpenConnections := 100
 
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
@@ -46,7 +44,7 @@ func main() {
 
 	s3Client := s3.NewFromConfig(cfg)
 
-	db, err := db.Connection("postgres", host, database, user, password, port, maxOpenConnections)
+	db, err := db.Connection("postgres", host, database, user, password, port)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,7 +63,7 @@ func main() {
 
 	go func() {
 		s := http.Server{
-			Addr:           ":8000",
+			Addr:           ":8080",
 			Handler:        h,
 			ReadTimeout:    10 * time.Second,
 			WriteTimeout:   10 * time.Second,
