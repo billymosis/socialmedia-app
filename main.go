@@ -19,7 +19,6 @@ import (
 	rs "github.com/billymosis/socialmedia-app/store/relationship"
 	us "github.com/billymosis/socialmedia-app/store/user"
 	"github.com/go-playground/validator/v10"
-	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 )
 
