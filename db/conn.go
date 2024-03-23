@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 func Connection(driver, host, database, username, password string, port, maxOpenConnections int) (*pgxpool.Pool, error) {
@@ -63,10 +64,8 @@ func parseDSN(driver, host, database, username, password string, port int, maxco
 }
 
 func postgreParseDSN(host, database, username, password string, port int, maxconn int) string {
-	if os.Getenv("ENV") == "production" {
-		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s TimeZone=UTC %s",
+	str := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s TimeZone=UTC %s",
 			host, port, username, password, database, strconv.Itoa(maxconn), os.Getenv("DB_PARAMS"))
-	}
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%s sslmode=disable",
-		host, port, username, password, database, strconv.Itoa(maxconn))
+	logrus.Printf("SQL CONN: %+v\n", str)
+	return str
 }
