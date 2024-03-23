@@ -25,9 +25,9 @@ import (
 
 func main() {
 
-	if err := godotenv.Load(); err != nil {
-		panic(err)
-	}
+	// if err := godotenv.Load(); err != nil {
+	// 	panic(err)
+	// }
 
 	host := os.Getenv("DB_HOST")
 	database := os.Getenv("DB_NAME")
