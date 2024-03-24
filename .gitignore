@@ -10,3 +10,4 @@ tmp
 go.work
 main
 *.pem
+env.sh

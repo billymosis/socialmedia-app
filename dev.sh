@@ -8,5 +8,6 @@ cleanup() {
 
 trap cleanup EXIT
 
+source ./env.sh
 docker compose up -d
 air

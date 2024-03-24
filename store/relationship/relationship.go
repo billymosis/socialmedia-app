@@ -12,7 +12,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type RelationshipStore struct {
@@ -206,8 +205,6 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 		}
 		query = strings.Replace(query, "WHERE AND", "WHERE", 1)
 	}
-	logrus.Printf("QUERY: %+v\n", query)
-	logrus.Printf("QUERY: %+v\n", params...)
 
 	rows, err := ps.db.Query(ctx, query, params...)
 	if err != nil {
@@ -223,7 +220,6 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 			return nil, errors.Wrap(err, "failed to scan friend data")
 		}
 		users = append(users, &user)
-		logrus.Printf("QUERY: %+v\n", &user)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -240,7 +236,6 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 	params = params[:len(params)-2]
 	var count int
 	err = ps.db.QueryRow(ctx, countQuery, params...).Scan(&count)
-	logrus.Println("WOX6")
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get total friend list")
@@ -253,8 +248,6 @@ func (ps *RelationshipStore) GetFriendList(ctx context.Context, userId int, quer
 			Total:  count,
 		},
 	}
-
-	logrus.Println("AKHIR")
 
 	return &friends, err
 }

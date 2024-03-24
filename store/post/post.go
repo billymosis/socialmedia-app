@@ -14,7 +14,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type PostStore struct {
@@ -139,8 +138,6 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 		}
 		query = strings.Replace(query, "WHERE AND", "WHERE", 1)
 	}
-	logrus.Printf("QUE: %+v\n", query)
-	logrus.Printf("QUE: %+v\n", params...)
 
 	rows, err := ps.db.Query(ctx, query, params...)
 	if err != nil {
@@ -173,7 +170,6 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 		LEFT JOIN users u ON c.user_id = u.id
 		WHERE c.post_id IN (%s)
 	`, strings.Join(orderID, ","))
-	logrus.Printf("Q2: %+v\n", query2)
 	rows, err = ps.db.Query(ctx, query2)
 	var comments = make(map[int][]*model.CommentAndUser, 0)
 	for rows.Next() {
@@ -186,8 +182,6 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 
 		comments[mod.Comment.PostId] = append(comments[mod.Comment.PostId], &mod)
 	}
-	logrus.Printf("OR: %+v\n", order)
-	logrus.Printf("OR3: %+v\n", comments)
 	for _, ord := range order {
 		id, err := strconv.Atoi(ord.PostID)
 		if err != nil {
@@ -197,7 +191,6 @@ func (ps *PostStore) GetPostList(ctx context.Context, queryParams url.Values) (*
 		current, ok := comments[id]
 		if ok {
 			for _, el := range current {
-				logrus.Printf("OR2: %+v\n", el)
 				ord.Comments = append(ord.Comments, model.CommentResponseValid{
 					Comment: el.Comment.Comment,
 					Creator: model.CreatorValid{

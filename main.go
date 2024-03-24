@@ -18,6 +18,7 @@ import (
 	rs "github.com/billymosis/socialmedia-app/store/relationship"
 	us "github.com/billymosis/socialmedia-app/store/user"
 	"github.com/go-playground/validator/v10"
+	// "github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,7 +30,7 @@ func main() {
 
 	host := os.Getenv("DB_HOST")
 	database := os.Getenv("DB_NAME")
-	port := (os.Getenv("DB_PORT"))
+	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USERNAME")
 	password := os.Getenv("DB_PASSWORD")
 	region := os.Getenv("S3_REGION")
@@ -57,7 +58,7 @@ func main() {
 	r := api.New(userStore, relationStore, postStore, s3Client)
 	h := r.Handler()
 
-	logrus.Info("application starting")
+	logrus.Info("application starting billy fixed env")
 
 	log.Println("application starting")
 
